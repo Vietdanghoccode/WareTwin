@@ -1,8 +1,9 @@
 /**
- * 資料來源切換（Phase 3）
- *  - 先嘗試 WebSocket 連後端；連上後 store.twin 完全由 FULL/PATCH 驅動，本地引擎停止。
- *  - 連不上（或斷線）→ 自動切回本地 TypeScript 引擎（Phase 2 的 rAF 迴圈），UI 顯示 LOCAL。
- *  控制指令（播放/暫停/倍速/重置/注入/建任務）透過 simControl() 送到目前的資料來源。
+ * Data-source switching (Phase 3). (Chuyển nguồn dữ liệu, Phase 3.)
+ *  - Try the backend WebSocket first; once connected, store.twin is driven by FULL/PATCH and the local engine stops.
+ *  - If it cannot connect or disconnects, switch to the local TypeScript engine and show LOCAL.
+ *  - Control commands go through simControl() to the active data source.
+ *  (Ưu tiên WebSocket backend; khi mất kết nối tự chuyển sang engine TypeScript local và hiển thị LOCAL.)
  */
 import { useEffect } from "react";
 import { SimEngine, SIM } from "./engine";

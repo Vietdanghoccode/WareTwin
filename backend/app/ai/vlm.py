@@ -1,12 +1,12 @@
 """
-VLM Perception（規格 1️⃣4️⃣）：Virtual CCTV 畫面 → 視覺語言模型 → 結構化觀察
+VLM Perception (Specification 1️⃣4️⃣): Virtual CCTV frame -> vision-language model -> structured observation. (Nhận thức VLM, đặc tả 1️⃣4️⃣: khung hình CCTV ảo -> mô hình ngôn ngữ-thị giác -> quan sát có cấu trúc.)
 
   POST /api/vlm/observe {camera_id, image_b64}  →  VlmObservation {event, zone, severity, blocked, confidence, bbox?}
 
-- 有 OPENAI_API_KEY：送 gpt-4o-mini（vision）並強制 JSON schema。
-- 沒有 key：simulated_observation() 用引擎的 ground truth（攝影機視野內有沒有人）產生觀察，標記 raw="simulated"。
-- VLM 的結果只「記錄」（cameras[id].last_observation + VLM_OBSERVATION 事件）。
-  是否根據 VLM 封鎖 Zone 由 TWIN_VLM_ACTS=1 控制（預設關閉，避免誤判干擾模擬）。
+- With OPENAI_API_KEY: send the frame to gpt-4o-mini (vision) with a mandatory JSON schema. (Có OPENAI_API_KEY: gửi khung hình đến gpt-4o-mini vision với JSON schema bắt buộc.)
+- Without a key: simulated_observation() uses engine ground truth (whether anyone is in the camera view) and marks raw="simulated". (Không có key: simulated_observation() dùng ground truth của engine và đánh dấu raw="simulated".)
+- VLM results are only recorded in cameras[id].last_observation and a VLM_OBSERVATION event. (Kết quả VLM chỉ được ghi vào cameras[id].last_observation và sự kiện VLM_OBSERVATION.)
+    Whether VLM observations block a zone is controlled by TWIN_VLM_ACTS=1, disabled by default to avoid false positives affecting the simulation. (Việc VLM có khóa zone hay không do TWIN_VLM_ACTS=1 điều khiển, mặc định tắt để tránh nhận diện sai ảnh hưởng mô phỏng.)
 """
 from __future__ import annotations
 
@@ -75,7 +75,7 @@ def observe_llm(camera_id: str, zone: str, image_b64: str, hint: dict[str, Any])
 
 
 def simulated_observation(camera_id: str, S: dict[str, Any], layout: dict[str, Any]) -> dict[str, Any]:
-    """沒有 VLM 時，用 ground truth 模擬（加一點保守的信心值），讓 Demo 03 流程完整。"""
+    """Simulate with ground truth when VLM is unavailable, using conservative confidence values so Demo 03 remains complete. (Khi không có VLM, mô phỏng bằng ground truth với độ tin cậy thận trọng để quy trình Demo 03 vẫn đầy đủ.)"""
     near = robots_near(S, layout, camera_id)
     people = near.get("people_in_range", [])
     if people:
@@ -87,7 +87,7 @@ def observe(camera_id: str, image_b64: str | None, S: dict[str, Any], layout: di
     cam = next((c for c in layout["cameras"] if c["id"] == camera_id), None)
     zone = cam["zone"] if cam else "?"
     hint = robots_near(S, layout, camera_id)
-    hint.pop("people_in_range", None)  # 不要把答案洩漏給 VLM
+    hint.pop("people_in_range", None)  # Do not leak the answer to the VLM. (Không tiết lộ đáp án cho VLM.)
     result = None
     if image_b64:
         try:

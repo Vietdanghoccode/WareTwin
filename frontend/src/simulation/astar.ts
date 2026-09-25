@@ -1,10 +1,11 @@
 /**
- * 格點 A*（8 方向、禁止切角）。
- * - grid.cells：0 可通行、1 障礙、2 人行道（可通行但成本較高）
- * - blocked：臨時障礙（其他機器人佔用格、封鎖 Zone 等），以 "c,r" 字串集合傳入
- * - costMap：可選的每格額外成本（交通擁塞），長度 cols*rows
- * 回傳不含起點的格點序列；找不到路徑回傳 null。
- * 純函式、無亂數，同樣輸入必得同樣輸出（What-if 重現性的基礎）。
+ * Grid A* (8 directions, no corner cutting).
+ * - grid.cells: 0 walkable, 1 obstacle, 2 walkway (walkable but more expensive)
+ * - blocked: temporary obstacles such as occupied robot cells or blocked zones, passed as a set of "c,r" strings
+ * - costMap: optional additional per-cell traffic congestion cost, length cols*rows
+ * Returns cells excluding the start; returns null when no path exists.
+ * Pure and deterministic: identical input always produces identical output, the basis of What-if replayability.
+ * (A* trên lưới 8 hướng, không cắt góc; hàm thuần và xác định, cùng input luôn cho cùng output.)
  */
 import type { GridCell } from "../schema/twin_state";
 

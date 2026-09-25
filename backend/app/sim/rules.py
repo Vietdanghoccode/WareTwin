@@ -1,5 +1,5 @@
-"""任務地點規則（與 frontend/src/simulation/rules.ts 相同）：
-source / destination 必須存在於 layout、不可是充電樁、不可相同，且依 TaskType 限制地點種類。"""
+"""Task location rules, matching frontend/src/simulation/rules.ts:
+source and destination must exist in the layout, cannot be chargers or identical, and are restricted by TaskType. (Quy tắc vị trí tác vụ, khớp với frontend/src/simulation/rules.ts: source và destination phải tồn tại trong layout, không phải trạm sạc, không trùng nhau và bị giới hạn theo TaskType.)"""
 from __future__ import annotations
 
 from typing import Any, Optional
@@ -13,7 +13,7 @@ TASK_RULES: dict[str, tuple[set[str], set[str]]] = {
 
 
 def task_error(loc: dict[str, dict[str, Any]], type_: str, source: str, destination: str) -> Optional[str]:
-    """回傳錯誤訊息；None = 合法。"""
+    """Return an error message; None means valid. (Trả về thông báo lỗi; None nghĩa là hợp lệ.)"""
     rule = TASK_RULES.get(type_)
     if not rule:
         return f"unknown task type {type_!r}"

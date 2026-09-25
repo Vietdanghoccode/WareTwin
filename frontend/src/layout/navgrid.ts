@@ -1,19 +1,20 @@
 import type { WarehouseLayout } from "./types";
 
 /**
- * 由 layout 產生導航網格。0 = 可通行、1 = 障礙、2 = walkway (可通行但減速)。
- * 規則見格式說明「導航網格的產生規則」。後端 Python 需實作同樣規則並以同一 layout 做比對測試。
+ * Build the navigation grid from the layout. 0 = walkable, 1 = obstacle, 2 = walkway (walkable but slower).
+ * Rules are documented in "Navigation grid generation rules". The Python backend must implement the same rules and compare against the same layout in tests.
+ * (Tạo lưới điều hướng từ layout. 0 = đi được, 1 = chướng ngại, 2 = lối đi có giảm tốc. Backend Python phải dùng cùng quy tắc và layout để kiểm thử đối chiếu.)
  */
 export function buildNavGrid(layout: WarehouseLayout, floor = 1): { cols: number; rows: number; cells: Uint8Array } {
   const { cols, rows, cell_size: cs } = layout.grid;
   const cells = new Uint8Array(cols * rows);
-  // 電梯井道（鋼架＋護網）在每個樓層都是實體障礙：一般路徑必須繞過，
-  // 進出轎廂只走電梯狀態機的 microMove（不經網格）。
-  // round-9g：井道 3D 外觀是 W 2.8 × D 3.6（Mezzanine LIFT_SHAFT），x 方向封 ±1.4（3 格，
-  // 覆蓋 2.8 + 兩側餘裕）夠用，但 z 方向若同樣只封 ±1.4（3 格 = 3.0 m）會讓南北護網各突出
-  // 0.4 m 到可走格 —— 貼著走的機器人（半寬 0.34、旋轉掃掠 0.58）會插進護網與角柱。
-  // 故 z 封 ±1.9（5 格），涵蓋 3.6 m 井道深度＋掃掠餘裕。排隊格（cell-4-i）、門軸中繼格
-  // 與全部出口候選點（dc −2/−3）都在封鎖範圍外、維持可走。
+  // The lift shaft is a physical obstacle on every floor; normal paths go around it.
+  // Boarding and alighting use the lift state machine's microMove, not the grid.
+  // (Giếng thang là chướng ngại vật trên mọi tầng; lên xuống dùng microMove, không qua lưới.)
+  // round-9g: the shaft is W 2.8 x D 3.6. Block x by +/-1.4 and z by +/-1.9
+  // to cover the mesh, corner posts, and robot sweep margin. Queue cells,
+  // door-axis relay cells, and exit candidates remain outside the blocked area.
+  // (Giếng thang rộng 2.8 x sâu 3.6 m; khóa x +/-1.4 và z +/-1.9 để đủ khoảng quét.)
   const blockLifts = () => {
     for (const l of layout.lifts ?? []) {
       const x = l.cell[0] + 0.5, z = l.cell[1] + 0.5;
@@ -23,7 +24,8 @@ export function buildNavGrid(layout: WarehouseLayout, floor = 1): { cols: number
     }
   };
   if (floor !== 1) {
-    // 二樓（夾層）：footprint 之外全是「不存在的樓板」= 障礙；footprint 內可走，再扣掉該樓層貨架
+    // Floor 2 mezzanine: outside the footprint is nonexistent floor slab and therefore blocked; remove that floor's racks from the walkable footprint.
+    // (Tầng lửng 2: bên ngoài footprint là phần sàn không tồn tại nên bị khóa; trừ các kệ của tầng khỏi vùng đi được.)
     cells.fill(1);
     const fp = layout.floors.find((f) => f.id === floor)?.footprint;
     if (fp) {
@@ -59,11 +61,11 @@ export function buildNavGrid(layout: WarehouseLayout, floor = 1): { cols: number
   }
   for (const ra of layout.restricted_areas) if (!ra.robots_allowed) fillRect(ra.rect[0], ra.rect[1], ra.rect[2], ra.rect[3], 1);
   for (const s of layout.stations) fillRect(s.rect[0], s.rect[1], s.rect[2], s.rect[3], 1);
-  // 夾層支撐柱（立在 F1 地面、撐到樓板）：以柱底板 0.9×0.9 m 封成障礙 —— 路徑必須繞柱，不能穿過
+  // Mezzanine support columns use 0.9 x 0.9 m blocked footprints; paths must go around them. (Cột đỡ tầng lửng có footprint 0.9 x 0.9 m bị khóa; đường đi phải vòng qua.)
   for (const [cx, cz] of layout.columns ?? []) fillRect(cx - 0.45, cz - 0.45, cx + 0.45, cz + 0.45, 1);
-  // 建築結構柱等實體障礙（round-9d）：整塊封鎖 —— 原本只在 3D 場景程序生成，網格不知道，機器人會穿柱
+  // Block physical obstacles such as structural columns so the grid matches the 3D scene. (Khóa các chướng ngại vật thật như cột kết cấu để lưới khớp với cảnh 3D.)
   for (const o of layout.obstacles ?? []) fillRect(o.rect[0], o.rect[1], o.rect[2], o.rect[3], 1);
-  // 充電樁櫃體（round-9e）：櫃體是實體 —— 封格後通行走廊固定在停車排南側一格，不會有人從櫃體穿過
+  // Charger cabinets are physical; blocking them keeps the passage one cell south of the parking row. (Tủ sạc là vật thể thật; khóa chúng để hành lang nằm cách dãy đỗ xe một ô về phía nam.)
   for (const c of layout.charging_stations) fillRect(c.position[0] - 0.45, c.position[2] - 0.4, c.position[0] + 0.45, c.position[2] + 0.5, 1);
   blockLifts();
   return { cols, rows, cells };

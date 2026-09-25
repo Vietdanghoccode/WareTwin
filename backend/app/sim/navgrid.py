@@ -1,4 +1,4 @@
-"""由 warehouse_layout.json 產生導航網格 — frontend/src/layout/navgrid.ts 的 Python 版本。規則必須與前端完全一致。"""
+"""Build the navigation grid from warehouse_layout.json, the Python version of frontend/src/layout/navgrid.ts. Rules must exactly match the frontend. (Tạo lưới điều hướng từ warehouse_layout.json, phiên bản Python của frontend/src/layout/navgrid.ts. Quy tắc phải khớp hoàn toàn với frontend.)"""
 from __future__ import annotations
 
 import json
@@ -20,11 +20,10 @@ def build_nav_grid(layout: dict[str, Any], floor: int = 1) -> NavGrid:
     cells = bytearray(cols * rows)
 
     def block_lifts() -> None:
-        # 電梯井道（鋼架＋護網）在每個樓層都是實體障礙：一般路徑必須繞過，
-        # 進出轎廂只走電梯狀態機的 micro-move（不經網格）。
-        # round-9g：井道 3D 外觀是 W 2.8 × D 3.6，x 封 ±1.4（3 格）夠用，z 若也只封 ±1.4
-        # 會讓南北護網各突出 0.4 m 到可走格，貼著走的機器人會插進護網與角柱；
-        # 故 z 封 ±1.9（5 格）。排隊格、門軸中繼格與出口候選點都在範圍外（規則與 TS 相同）。
+        # The lift shaft is a physical obstacle on every floor; normal paths go around it.
+        # Boarding and alighting use the lift state machine's micro-move, not the grid.
+        # (Giếng thang là chướng ngại vật trên mọi tầng; đường đi thường phải vòng qua.
+        # Lên xuống thang dùng micro-move của state machine, không đi qua lưới.)
         for l in layout.get("lifts", []):
             x = l["cell"][0] + 0.5; z = l["cell"][1] + 0.5
             c0 = max(0, math.floor((x - 1.4) / cs)); c1 = min(cols - 1, math.ceil((x + 1.4) / cs) - 1)
@@ -35,7 +34,8 @@ def build_nav_grid(layout: dict[str, Any], floor: int = 1) -> NavGrid:
                     cells[base + c] = 1
 
     if floor != 1:
-        # 二樓（夾層）：footprint 之外全是障礙；footprint 內可走，再扣掉該樓層貨架（規則與 TS 相同）
+        # Floor 2 mezzanine: outside the footprint is blocked; inside it is walkable except for that floor's racks.
+        # (Tầng lửng 2: bên ngoài footprint là chướng ngại; bên trong đi được, trừ các kệ của tầng đó.)
         for i in range(len(cells)):
             cells[i] = 1
         fp = next((f.get("footprint") for f in layout.get("floors", []) if f["id"] == floor), None)
@@ -85,13 +85,13 @@ def build_nav_grid(layout: dict[str, Any], floor: int = 1) -> NavGrid:
             fill_rect(*ra["rect"], 1)
     for s in layout["stations"]:
         fill_rect(*s["rect"], 1)
-    # 夾層支撐柱（立在 F1 地面、撐到樓板）：以柱底板 0.9×0.9 m 封成障礙 —— 路徑必須繞柱，不能穿過
+    # Mezzanine support columns are 0.9 x 0.9 m blocked footprints. Paths must go around them. (Cột đỡ tầng lửng có footprint bị khóa 0.9 x 0.9 m; đường đi phải vòng qua.)
     for cx, cz in layout.get("columns", []):
         fill_rect(cx - 0.45, cz - 0.45, cx + 0.45, cz + 0.45, 1)
-    # 建築結構柱等實體障礙（round-9d）：整塊封鎖 —— 原本只在 3D 場景程序生成，網格不知道，機器人會穿柱
+    # Block physical obstacles such as structural columns; the grid must match the 3D scene. (Khóa các chướng ngại vật thật như cột kết cấu để lưới khớp với cảnh 3D.)
     for o in layout.get("obstacles", []):
         fill_rect(o["rect"][0], o["rect"][1], o["rect"][2], o["rect"][3], 1)
-    # 充電樁櫃體（round-9e）：櫃體是實體 —— 封格後通行走廊固定在停車排南側一格，不會有人從櫃體穿過
+    # Charger cabinets are physical; block them so the passage stays on the south side of the parking row. (Tủ sạc là vật thể thật; khóa chúng để hành lang nằm ở phía nam dãy đỗ xe.)
     for c in layout["charging_stations"]:
         fill_rect(c["position"][0] - 0.45, c["position"][2] - 0.4, c["position"][0] + 0.45, c["position"][2] + 0.5, 1)
     block_lifts()

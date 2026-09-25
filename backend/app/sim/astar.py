@@ -1,8 +1,8 @@
 """
-格點 A*（8 方向、禁止切角）— frontend/src/simulation/astar.ts 的 Python 版本。
-grid.cells: 0 可通行、1 障礙、2 人行道（成本 ×1.6）。
-blocked: 臨時障礙 (set of (c, r))；cost_map: 每格額外成本 (list[float] 長 cols*rows)。
-回傳不含起點的格點列表；找不到回傳 None。純函式、無亂數。
+Grid A* (8 directions, no corner cutting), the Python version of frontend/src/simulation/astar.ts. (A* trên lưới, 8 hướng, không cắt góc; phiên bản Python của frontend/src/simulation/astar.ts.)
+grid.cells: 0 walkable, 1 obstacle, 2 walkway (cost x1.6). (grid.cells: 0 đi được, 1 chướng ngại, 2 lối đi với chi phí x1.6.)
+blocked: temporary obstacles (set of (c, r)); cost_map: additional per-cell cost (list[float] of length cols*rows). (blocked: chướng ngại tạm thời; cost_map: chi phí bổ sung cho từng ô.)
+Returns grid cells excluding the start; returns None when no path exists. Pure function with no randomness. (Trả về các ô không gồm ô bắt đầu; trả về None nếu không có đường đi. Hàm thuần, không dùng ngẫu nhiên.)
 """
 from __future__ import annotations
 

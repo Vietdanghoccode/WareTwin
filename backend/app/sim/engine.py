@@ -1,8 +1,8 @@
 """
-Digital Twin 模擬引擎 — frontend/src/simulation/engine.ts 的 Python 移植版。
+Digital Twin simulation engine, the Python port of frontend/src/simulation/engine.ts. (Engine mô phỏng Digital Twin, bản chuyển sang Python của frontend/src/simulation/engine.ts.)
 
-對應關係：方法名稱、tick 順序、FSM、評分權重、SIM 參數與 TS 版逐一相同。
-state 以純 dict 表示（與 TwinState JSON 完全一致），Pydantic 驗證在 API 邊界進行。
+The method names, tick order, FSM, scoring weights, and SIM parameters match the TS version one by one. (Tên phương thức, thứ tự tick, FSM, trọng số chấm điểm và tham số SIM khớp từng phần với bản TS.)
+state is represented as a plain dict matching TwinState JSON; Pydantic validation occurs at the API boundary. (state là dict thuần khớp TwinState JSON; Pydantic xác thực ở biên API.)
 """
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from .navgrid import build_nav_grid
 from .rules import task_error
 
 # ─────────────────────────────────────────────────────────────
-# 常數（與 twin_state.ts THRESHOLDS / engine.ts SIM 相同）
+# Constants matching twin_state.ts THRESHOLDS and engine.ts SIM. (Hằng số khớp với THRESHOLDS và SIM của engine.ts.)
 # ─────────────────────────────────────────────────────────────
 TH = dict(BATTERY_WARNING=20, BATTERY_CRITICAL=10, BATTERY_CHARGE_TO=95, CONGESTION_WARNING=0.6,
           CONGESTION_BLOCK=0.85, TICK_MS=100, EVENT_RING_SIZE=500, THROUGHPUT_SERIES_SIZE=120)
@@ -23,7 +23,7 @@ SIM = dict(
     BATTERY_MOVE=0.010, BATTERY_LOAD=0.004, BATTERY_IDLE=0.0008, CHARGE_RATE=0.06,
     TASK_INTERVAL_TICKS=70, MAX_WAITING_TASKS=12, WAIT_REPLAN_TICKS=25, WAIT_BACKOFF_TICKS=80, STATION_ARRIVE_CELLS=2, SERVICE_RADIUS=1, MIN_SEP=0.9, ON_TIME_LIMIT_TICKS=2400,
     IDLE_TO_PARK_TICKS=300, KPI_EVERY=10, SERIES_EVERY=600, EVENT_RING=500, ZONE_CAPACITY=6,
-    # Phase 7：虛擬 LiDAR 與局部避障（與 TS 引擎相同）
+    # Phase 7: virtual LiDAR and local obstacle avoidance, matching the TS engine. (Phase 7: LiDAR ảo và tránh chướng ngại cục bộ, khớp engine TS.)
     LIDAR_RANGE=4.0, LIDAR_FOV=math.pi * 1.5, PERC_STOP=1.7, PERC_SLOW=2.8, PERC_LOOKAHEAD=3, PERC_EVENT_TICKS=200,
     LIFT_SEP=0.6,   # 電梯口「對接模式」間距 (m)：排隊遞補/進出轎廂的低速微移動用，比走道 MIN_SEP 緊
     # 電梯門區幾何（round-8c）：與前端 Mezzanine 井道模型一致（W 2.8 / 雙開門單片 LEAF 1.12）

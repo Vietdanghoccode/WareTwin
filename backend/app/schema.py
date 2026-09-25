@@ -1,10 +1,10 @@
 """
-AI Autonomous Warehouse Digital Twin — Twin State 資料契約 (Pydantic v2)
+AI Autonomous Warehouse Digital Twin — Twin State data contract (Pydantic v2). (Hợp đồng dữ liệu Twin State, Pydantic v2.)
 
-與 twin_state.ts 逐欄對應。規則同 TS 檔：純資料、可序列化、座標單位公尺、tick 為模擬時間。
-後端所有 API / WebSocket 輸出都必須經過這裡的 model 驗證後才送出。
+Field-by-field counterpart of twin_state.ts. Like the TS file, it contains serializable data only, uses meters for coordinates, and treats tick as simulation time. (Đối chiếu theo từng trường với twin_state.ts; chỉ chứa dữ liệu có thể serialize, tọa độ tính bằng mét và tick là thời gian mô phỏng.)
+All backend API and WebSocket output must pass model validation here before being sent. (Mọi output API và WebSocket của backend phải được model ở đây xác thực trước khi gửi.)
 
-用法：
+Usage. (Cách dùng.)
     state = TwinState.model_validate(json_dict)
     state.model_dump_json()            # 送 WebSocket
     copy = state.model_copy(deep=True) # What-if 複製
@@ -17,7 +17,7 @@ from typing import Annotated, Any, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field
 
 # ─────────────────────────────────────────────────────────────
-# 基礎型別
+# Basic types. (Kiểu cơ bản.)
 # ─────────────────────────────────────────────────────────────
 
 Vec3 = tuple[float, float, float]
@@ -39,7 +39,7 @@ Unit = Annotated[float, Field(ge=0, le=1)]
 
 
 class _Base(BaseModel):
-    """所有 model 的共同設定：禁止未知欄位，enum 以字串輸出。"""
+    """Shared model configuration: reject unknown fields and serialize enums as strings. (Cấu hình chung: từ chối trường không xác định và serialize enum thành chuỗi.)"""
     model_config = ConfigDict(extra="forbid", use_enum_values=True)
 
 

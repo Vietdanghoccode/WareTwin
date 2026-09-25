@@ -1,10 +1,10 @@
 """
-AI Operations Copilot（規格 1️⃣6️⃣）
+AI Operations Copilot (Specification 1️⃣6️⃣). (Copilot vận hành AI, đặc tả 1️⃣6️⃣.)
 
   question + summarize_state(TwinState) → LLM (OpenAI, structured output) → {text, citations[]}
 
-- 有 OPENAI_API_KEY：用 OpenAI Chat Completions，回覆強制 JSON schema，引用只能是摘要裡出現過的 id（事件 E…、機器人 R…、任務 A…、決策 D…）。
-- 沒有 key（或呼叫失敗）：退回規則式分析 rule_based_answer()，讓 Demo 09 在離線時也有合理回答。
+- With OPENAI_API_KEY: use OpenAI Chat Completions with a mandatory JSON schema; citations may only reference IDs present in the summary (events E..., robots R..., tasks A..., decisions D...). (Có OPENAI_API_KEY: dùng OpenAI Chat Completions với JSON schema bắt buộc; citation chỉ được tham chiếu ID có trong bản tóm tắt.)
+- Without a key (or if the call fails): fall back to rule_based_answer() so Demo 09 still gives useful answers offline. (Không có key hoặc gọi thất bại: dùng rule_based_answer() để Demo 09 vẫn trả lời hữu ích khi offline.)
 """
 from __future__ import annotations
 
@@ -81,7 +81,7 @@ def _all_ids(snap: dict[str, Any]) -> list[str]:
 
 
 # ─────────────────────────────────────────────────────────────
-# 規則式 fallback
+# Rule-based fallback. (Fallback dựa trên luật.)
 # ─────────────────────────────────────────────────────────────
 def rule_based_answer(question: str, S: dict[str, Any]) -> dict[str, Any]:
     snap = summarize_state(S)
@@ -172,7 +172,7 @@ def answer(question: str, S: dict[str, Any], layout: dict[str, Any]) -> dict[str
         r = ask_llm(question, S)
         if r:
             return r
-    except Exception as e:  # 金鑰錯誤、網路、限流 → 退回規則式，不讓 UI 掛掉
+    except Exception as e:  # Key, network, or rate-limit errors fall back to rules so the UI stays available. (Lỗi key, mạng hoặc giới hạn tốc độ sẽ fallback về luật để UI vẫn hoạt động.)
         fb = rule_based_answer(question, S)
         fb["text"] = f"[LLM unavailable: {type(e).__name__}] " + fb["text"]
         return fb

@@ -1,4 +1,4 @@
-/** 任務地點規則（與 backend/app/sim/rules.py 相同）：存在、非充電樁、不相同、符合 TaskType。 */
+/** Task location rules matching backend/app/sim/rules.py: existing, non-charger, distinct, and compatible with TaskType. (Quy tắc vị trí tác vụ khớp backend/app/sim/rules.py: phải tồn tại, không phải trạm sạc, khác nhau và phù hợp TaskType.) */
 import type { LayoutLocation } from "../layout/types";
 
 export const TASK_RULES: Record<string, [Set<string>, Set<string>]> = {
@@ -8,7 +8,7 @@ export const TASK_RULES: Record<string, [Set<string>, Set<string>]> = {
   RETURN: [new Set(["PACKING", "SORTING", "OUTBOUND"]), new Set(["SHELF"])],
 };
 
-/** 回傳錯誤訊息；null = 合法 */
+/** Return an error message; null means valid. (Trả về thông báo lỗi; null nghĩa là hợp lệ.) */
 export function taskError(loc: Record<string, LayoutLocation>, type: string, source: string, destination: string): string | null {
   const rule = TASK_RULES[type];
   if (!rule) return `unknown task type ${type}`;

@@ -1,4 +1,4 @@
-"""SQLite 事件 / KPI 持久層（第一版；之後換 PostgreSQL 只需改這個檔）。"""
+"""SQLite event / KPI persistence layer (v1; replacing it with PostgreSQL should only require changing this file). (Lớp lưu trữ bền vững cho sự kiện/KPI bằng SQLite, phiên bản 1; đổi sang PostgreSQL chỉ cần sửa file này.)"""
 from __future__ import annotations
 
 import json

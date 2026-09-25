@@ -1,12 +1,12 @@
 """
-What-if Simulation（規格 1️⃣7️⃣ / Demo 08）
+What-if Simulation (Specification 1️⃣7️⃣ / Demo 08). (Mô phỏng What-if, đặc tả 1️⃣7️⃣ / Demo 08.)
 
   Baseline ──clone──▶ 跑 N tick ──▶ KPI_b
   LIVE state ─┤
   Scenario ──clone──▶ 注入 ──▶ 跑 N tick ──▶ KPI_s      →  delta / key events / AI recommendation
 
-兩個 clone 都從同一個 tick、同一個亂數狀態出發，所以差異只來自注入本身（確定性引擎的價值就在這裡）。
-LIVE 引擎完全不受影響。
+Both clones start from the same tick and random state, so differences come only from the injection. (Hai bản clone bắt đầu cùng tick và trạng thái ngẫu nhiên, nên khác biệt chỉ đến từ injection.)
+The LIVE engine is completely unaffected. (Engine LIVE hoàn toàn không bị ảnh hưởng.)
 
 round-10（社群回饋）：
   A1 多 seed ensemble（Vijay）——ensemble_seeds > 1 時額外跑 N−1 對 clone，每對把兩台引擎
@@ -25,17 +25,17 @@ from typing import Any, Callable
 
 from .engine import SimEngine, mulberry32
 
-MAX_SIG = 4000                      # 每條事件流簽章的上限（分岔幾乎都發生在注入當下，遠低於此）
-ENSEMBLE_MAX = 5                    # ensemble 上限（免費方案算力）
-ENSEMBLE_BUDGET_TICKS = 9000        # ensemble > 1 時 seeds × duration 的上限（每側）：3 seeds → 5 分鐘、5 seeds → 3 分鐘
+MAX_SIG = 4000                      # Maximum event-stream signature length; divergence usually occurs at injection. (Giới hạn chữ ký luồng sự kiện; phân nhánh thường xảy ra lúc injection.)
+ENSEMBLE_MAX = 5                    # Ensemble limit for free-tier compute. (Giới hạn ensemble cho tài nguyên gói miễn phí.)
+ENSEMBLE_BUDGET_TICKS = 9000        # Maximum seeds x duration per side when ensemble > 1. (Giới hạn seeds x duration mỗi phía khi ensemble > 1.)
 
 
 class WhatIfBusy(Exception):
-    """同時只允許一個 What-if 在跑；忙碌時呼叫端應立即回 BUSY（WS ERROR / REST 503），不排隊。"""
+    """Allow only one What-if at a time; callers should immediately receive BUSY (WS ERROR / REST 503) rather than queueing. (Chỉ cho phép một What-if chạy cùng lúc; caller nhận BUSY ngay thay vì xếp hàng.)"""
 
 
 def ensemble_duration_cap(seeds: int) -> int:
-    """ensemble 時單次時長上限（tick）。seeds=1 不設限（沿用 6000）。前端下拉選單用同一條規則。"""
+    """Return the duration cap in ticks for ensemble runs. seeds=1 keeps the existing 6000 limit. (Trả về giới hạn thời lượng theo tick cho ensemble; seeds=1 giữ giới hạn 6000.)"""
     return 6000 if seeds <= 1 else max(300, ENSEMBLE_BUDGET_TICKS // seeds)
 
 METRICS = [

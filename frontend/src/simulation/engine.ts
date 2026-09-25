@@ -1,12 +1,14 @@
 /**
- * Digital Twin 模擬引擎（Phase 2：本地執行；Phase 3 原樣搬到 Python 後端）
+ * Digital Twin simulation engine (Phase 2: local execution; Phase 3 ported unchanged to the Python backend).
+ * (Engine mô phỏng Digital Twin, Phase 2 chạy local; Phase 3 chuyển nguyên trạng sang backend Python.)
  *
- * 原則
- *  - 確定性：所有亂數來自 seed 決定的 PRNG，不讀時鐘。同 seed + 同輸入 → 同結果。
- *  - 純資料：state 是 TwinState，可 JSON 序列化、可複製（What-if）。
- *  - 固定 tick = 100 ms 模擬時間。
+ * Principles. (Nguyên tắc.)
+ *  - Deterministic: all randomness comes from a seed-based PRNG; same seed and input produce the same result. (Xác định: cùng seed và input cho cùng kết quả.)
+ *  - Plain data: state is TwinState, JSON-serializable, and cloneable for What-if. (Dữ liệu thuần: state là TwinState, có thể JSON hóa và clone cho What-if.)
+ *  - Fixed tick = 100 ms of simulation time. (Mỗi tick cố định bằng 100 ms thời gian mô phỏng.)
  *
- * 每 tick 的順序：任務產生 → 任務指派 → 每台機器人 FSM/移動/電池 → Zone/擁塞統計 → KPI → 事件整理
+ * Per-tick order: task generation -> assignment -> robot FSM/movement/battery -> zone/congestion stats -> KPI -> event collection.
+ * (Thứ tự mỗi tick: tạo tác vụ -> phân công -> FSM/di chuyển/pin của robot -> thống kê zone/tắc nghẽn -> KPI -> tổng hợp sự kiện.)
  */
 import type { WarehouseLayout, LayoutLocation } from "../layout/types";
 import { buildNavGrid } from "../layout/navgrid";
@@ -19,7 +21,7 @@ import { astar, cellKey, cellCenter, isWalkable, nearestWalkable, toCell, type N
 import { taskError } from "./rules";
 
 // ─────────────────────────────────────────────────────────────
-// 參數（集中一處，之後可由 UI 調整）
+// Parameters kept in one place for future UI adjustment. (Tham số tập trung một chỗ để UI có thể điều chỉnh sau này.)
 // ─────────────────────────────────────────────────────────────
 export const SIM = {
   TICK_S: THRESHOLDS.TICK_MS / 1000,

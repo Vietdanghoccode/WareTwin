@@ -1,17 +1,16 @@
 """
-公開 Demo 的防護層（第 2 批 review 修正）
+Public Demo protection layer (second review pass). (Lớp bảo vệ cho Demo công khai, đợt sửa review thứ hai.)
 
-  - Origin 檢查：設定了 TWIN_CORS_ORIGINS / TWIN_CORS_REGEX 時，WebSocket 與會改變狀態的 POST
-    必須帶允許的 Origin（瀏覽器一定會帶；curl 沒帶 → 拒絕，除非 TWIN_ALLOW_NO_ORIGIN=1）。
-    沒設定（本機開發，預設 "*"）則不檢查。
-  - Rate limit：記憶體內的 sliding window，依 client IP（Render 之後走 X-Forwarded-For）分桶：
-        mutate  注入 / 清除 / 建任務 / 播放暫停重置      20 次 / 分鐘
-        ai      Copilot / VLM                           10 次 / 分鐘
-        whatif  What-if                                  4 次 / 分鐘
-        ws      每條 WebSocket 的訊息總量                120 次 / 分鐘
-    TWIN_RATE_LIMIT=0 可關閉（測試／本機）。
-  - Body 大小上限：REST 512 KB（在 ASGI receive 層以實際 bytes 計算）、WS 單則訊息 64 KB（UTF-8 bytes）。
-  - 任務地點：由 app/sim/rules.py 驗證（存在、非充電樁、不相同、符合 TaskType）。
+    - Origin checks: when TWIN_CORS_ORIGINS / TWIN_CORS_REGEX is configured, WebSocket and state-changing POST requests must include an allowed Origin. (Kiểm tra Origin: khi cấu hình TWIN_CORS_ORIGINS / TWIN_CORS_REGEX, WebSocket và POST thay đổi trạng thái phải có Origin được phép.)
+        Browsers always send it; curl without one is rejected unless TWIN_ALLOW_NO_ORIGIN=1. With no configuration (local development, default "*"), it is not checked. (Trình duyệt luôn gửi Origin; curl không có sẽ bị từ chối trừ khi TWIN_ALLOW_NO_ORIGIN=1. Không cấu hình thì không kiểm tra.)
+    - Rate limit: in-memory sliding windows bucketed by client IP (via X-Forwarded-For on Render). (Giới hạn tốc độ: sliding window trong bộ nhớ, chia bucket theo IP client.)
+                mutate  inject / clear / create task / play-pause-reset      20 per minute (20 lần/phút)
+                ai      Copilot / VLM                                      10 per minute (10 lần/phút)
+                whatif  What-if                                             4 per minute (4 lần/phút)
+                ws      total messages per WebSocket                       120 per minute (120 lần/phút)
+        TWIN_RATE_LIMIT=0 disables it for tests and local development. (TWIN_RATE_LIMIT=0 tắt giới hạn cho test và phát triển local.)
+    - Body limits: REST 512 KB measured from actual bytes at the ASGI receive layer; each WS message is 64 KB in UTF-8 bytes. (Giới hạn body: REST 512 KB đo từ byte thực tế; mỗi tin nhắn WS tối đa 64 KB UTF-8.)
+    - Task locations are validated by app/sim/rules.py: existing, non-charger, distinct, and compatible with TaskType. (Vị trí tác vụ do app/sim/rules.py kiểm tra: phải tồn tại, không phải trạm sạc, khác nhau và phù hợp TaskType.)
 """
 from __future__ import annotations
 
@@ -37,7 +36,7 @@ def rate_limit_enabled() -> bool:
 
 
 class RateLimiter:
-    GC_EVERY = 500   # 每 N 次 check 掃一次過期 key，避免大量不同 IP 永久留在記憶體
+    GC_EVERY = 500   # Scan expired keys every N checks to avoid retaining many IPs forever. (Quét key hết hạn mỗi N lần check để tránh giữ nhiều IP trong bộ nhớ mãi mãi.)
 
     def __init__(self) -> None:
         self._hits: dict[tuple[str, str], Deque[float]] = defaultdict(deque)
@@ -49,7 +48,7 @@ class RateLimiter:
             del self._hits[k]
 
     def check(self, bucket: str, key: str) -> tuple[bool, float]:
-        """回傳 (允許?, 需等待秒數)。"""
+        """Return (allowed?, seconds to wait). (Trả về (được phép?, số giây cần chờ).)"""
         if not rate_limit_enabled():
             return True, 0.0
         limit, window = LIMITS[bucket]
@@ -73,9 +72,10 @@ limiter = RateLimiter()
 
 
 def client_key(headers: dict[str, str] | None, host: str | None) -> str:
-    """反向代理（Render）會把真實 client IP **附加**到 X-Forwarded-For 尾端，client 自己塞的假值在前面；
-    所以要取「倒數第 TWIN_TRUSTED_PROXIES 個」（預設 1 = 最後一段，即 proxy 親眼看到的連線）。
-    TWIN_TRUSTED_PROXIES=0 = 不信任 header，直接用連線來源（本機開發）。"""
+    """A reverse proxy (Render) appends the real client IP to X-Forwarded-For while client-supplied values stay at the front.
+    Take the TWIN_TRUSTED_PROXIES-th value from the end (default 1 is the proxy's observed connection).
+    TWIN_TRUSTED_PROXIES=0 ignores the header and uses the connection source for local development.
+    (Proxy ngược thêm IP thật vào cuối X-Forwarded-For; lấy phần tử từ cuối theo số proxy tin cậy.)"""
     h = {k.lower(): v for k, v in (headers or {}).items()}
     n = int(os.environ.get("TWIN_TRUSTED_PROXIES", "1"))
     xff = h.get("x-forwarded-for")

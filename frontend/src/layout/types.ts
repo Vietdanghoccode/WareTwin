@@ -1,4 +1,4 @@
-/** warehouse_layout.json 的型別，對應 docs/layout/warehouse_layout_格式說明.md */
+/** Types for warehouse_layout.json, matching the layout format documentation. (Kiểu của warehouse_layout.json, khớp tài liệu định dạng layout.) */
 export type P2 = [number, number];
 export type P3 = [number, number, number];
 export type Rect = [number, number, number, number];
@@ -6,7 +6,7 @@ export type Rect = [number, number, number, number];
 export interface LayoutZone { id: string; name: string; color: string; polygon: P2[]; floor?: number }
 export interface LayoutDock { id: string; kind: "INBOUND" | "OUTBOUND"; zone: string; rect: Rect; door: P2 }
 export interface LayoutRack { id: string; zone: string; position: P3; size: P3; rotation: number; levels: number; model: string; blocks_grid: boolean; floor?: number }
-export interface LayoutConveyor { id: string; name: string; zone: string; path: P2[]; width: number; speed_mps: number; direction: string; blocks_grid: boolean; /** 這條輸送帶供應的工作站；故障時該站的卸貨時間變長 */ feeds?: string }
+export interface LayoutConveyor { id: string; name: string; zone: string; path: P2[]; width: number; speed_mps: number; direction: string; blocks_grid: boolean; /** Station fed by this conveyor; unloading takes longer when it fails. (Trạm được băng tải này cấp; thời gian dỡ hàng tăng khi băng tải lỗi.) */ feeds?: string }
 export interface LayoutStation { id: string; kind: string; zone: string; rect: Rect; access_point: P2 }
 export interface LayoutCharging { id: string; zone: string; position: P3; heading: number; power_kw: number; access_point: P2 }
 export interface LayoutParking { id: string; zone: string; rect: Rect; slots: number }
@@ -27,7 +27,7 @@ export interface WarehouseLayout {
   size: { width: number; depth: number; height: number };
   grid: { cell_size: number; cols: number; rows: number };
   floors: LayoutFloor[];
-  /** 夾層支撐柱位（立在 F1 地面）：F1 導航網格以柱底板 0.9×0.9 m 封成障礙 */
+  /** Mezzanine support columns on F1; the grid blocks each 0.9 x 0.9 m base plate. (Cột đỡ tầng lửng trên F1; lưới khóa footprint 0.9 x 0.9 m.) */
   columns?: Array<[number, number]>;
   lifts: LayoutLift[];
   zones: LayoutZone[];
@@ -42,7 +42,7 @@ export interface WarehouseLayout {
   cameras: LayoutCamera[];
   sensors: LayoutSensor[];
   locations: LayoutLocation[];
-  /** 建築結構柱等實體障礙：F1 導航網格整塊封鎖；WarehouseShell 由此渲染柱子 */
+  /** Physical obstacles such as structural columns; the F1 grid blocks them and WarehouseShell renders them. (Chướng ngại vật thật như cột kết cấu; lưới F1 khóa và WarehouseShell render chúng.) */
   obstacles: Array<{ id: string; kind: string; rect: [number, number, number, number] }>;
   spawn: { robots: LayoutSpawnRobot[] };
 }

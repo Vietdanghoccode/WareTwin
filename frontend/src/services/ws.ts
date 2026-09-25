@@ -1,15 +1,16 @@
 /**
- * WebSocket client（Phase 3）
+ * WebSocket client (Phase 3). (Client WebSocket, Phase 3.)
  *
  *  Backend → FULL / PATCH / HEATMAP / ERROR   →  store.twin / store.heat
  *  UI      → SIM_CONTROL / INJECT / CREATE_TASK / ACK_ALERT / RESYNC
  *
- * PATCH 合併規則（與 backend/app/main.py make_patch 對應）：
- *  - sim / kpi / subsystems / recent_decisions：整段取代
- *  - robots：每台 {...prev, ...patch}（path 只在變更時出現）
- *  - tasks / zones / conveyors / cameras / sensors / people / alerts：以 id 合併；值為 null 代表刪除
- *  - events：prepend 到 recent_events（ring 500）
- * 若 patch.base_tick 與本地 tick 不符 → 送 RESYNC 要 FULL。
+ * PATCH merge rules matching backend/app/main.py make_patch:
+ *  - sim / kpi / subsystems / recent_decisions: replace the whole section
+ *  - robots: merge each robot as {...prev, ...patch}; path appears only when changed
+ *  - tasks / zones / conveyors / cameras / sensors / people / alerts: merge by id; null deletes
+ *  - events: prepend to recent_events (ring 500)
+ * If patch.base_tick differs from the local tick, send RESYNC to request FULL.
+ * (Quy tắc gộp PATCH: thay toàn bộ section, gộp robot và collection theo id; gửi RESYNC nếu base_tick lệch tick local.)
  */
 import type { ServerMessage, ClientMessage, TwinState, HeatmapLayer, RobotState } from "../schema/twin_state";
 import { THRESHOLDS } from "../schema/twin_state";
@@ -18,7 +19,7 @@ import { useStore } from "../state/store";
 export type ConnState = "connecting" | "online" | "offline";
 
 const WS_URL = (import.meta as unknown as { env: Record<string, string | undefined> }).env?.VITE_WS_URL ?? `ws://${location.hostname}:8000/ws`;
-/** REST base（由 WS_URL 推導）：ws://host:8000/ws → http://host:8000 */
+/** REST base derived from WS_URL: ws://host:8000/ws -> http://host:8000. (REST base suy ra từ WS_URL.) */
 export const API_URL = WS_URL.replace(/^ws/, "http").replace(/\/ws$/, "");
 const COLLECTIONS = ["tasks", "lifts", "zones", "conveyors", "cameras", "sensors", "people", "alerts"] as const;
 

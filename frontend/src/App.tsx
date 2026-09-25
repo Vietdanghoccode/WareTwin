@@ -12,8 +12,9 @@ import { Modals } from "./components/ops/Modals";
 import { WhatIfDrawer } from "./components/ops/WhatIfDrawer";
 
 /**
- * 版面以 1536×860 CSS px 為基準設計；視窗更小時整體等比縮小，確保所有面板完整可見
- * (Windows 125% 縮放的 1080p ≈ 1536×750)。用 transform 而不是 CSS zoom：zoom 會讓 R3F 量到的畫布尺寸被縮兩次。
+ * Layout is designed around 1536x860 CSS px and scales down proportionally on smaller windows so every panel remains visible.
+ * (1080p at 125% Windows scaling is approximately 1536x750.) Use transform instead of CSS zoom because zoom double-scales the canvas measured by R3F.
+ * (Bố cục dựa trên 1536x860 px CSS và thu nhỏ theo tỷ lệ trên cửa sổ nhỏ để mọi panel vẫn hiển thị. Dùng transform thay vì CSS zoom vì zoom làm canvas của R3F bị scale hai lần.)
  */
 const DESIGN_W = 1536, DESIGN_H = 860;
 function useFitScale() {
@@ -29,7 +30,7 @@ function useFitScale() {
   }, []);
 }
 
-/** 後端回 RATE_LIMITED / TOO_LARGE 等訊息時的短暫提示 */
+/** Brief notice when the backend returns RATE_LIMITED / TOO_LARGE and similar messages. (Thông báo ngắn khi backend trả về RATE_LIMITED / TOO_LARGE.) */
 function Notice() {
   const notice = useStore((s) => s.notice);
   const setNotice = useStore((s) => s.setNotice);

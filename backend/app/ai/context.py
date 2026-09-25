@@ -1,4 +1,4 @@
-"""把 TwinState 濃縮成 LLM 能讀的營運摘要（控制在 ~3k tokens）。Copilot 與 VLM 共用。"""
+"""Condense TwinState into an operations summary readable by the LLM (~3k tokens). Shared by Copilot and VLM. (Tóm tắt TwinState thành bản tóm tắt vận hành mà LLM có thể đọc (~3k token). Dùng chung cho Copilot và VLM.)"""
 from __future__ import annotations
 
 from typing import Any
@@ -45,7 +45,7 @@ def summarize_state(S: dict[str, Any], max_events: int = 30) -> dict[str, Any]:
 
 
 def robots_near(S: dict[str, Any], layout: dict[str, Any], camera_id: str) -> dict[str, Any]:
-    """VLM 的輔助上下文：攝影機視野內（粗略：同 zone 且距離 < range）有什麼。"""
+    """Build VLM context: what is in the camera view (roughly, same zone and within range). (Tạo ngữ cảnh cho VLM: những gì nằm trong tầm camera, gần đúng là cùng zone và trong phạm vi.)"""
     cam = next((c for c in layout["cameras"] if c["id"] == camera_id), None)
     if not cam:
         return {}

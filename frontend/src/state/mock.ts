@@ -1,2 +1,3 @@
-// Phase 1 的假資料已由 src/simulation/engine.ts 取代。此檔保留為空以避免舊匯入失效，可安全刪除。
+// Phase 1 mock data was replaced by src/simulation/engine.ts. This file stays empty for legacy imports and can be removed safely.
+// (Dữ liệu mock Phase 1 đã được thay bằng src/simulation/engine.ts; giữ file trống để import cũ không lỗi.)
 export {};
