@@ -1,0 +1,20 @@
+{
+  "name": "WareTwin local MQTT connection",
+  "connectionType": "mqtt",
+  "connectionStatus": "open",
+  "uri": "tcp://mosquitto:1883",
+  "failoverEnabled": true,
+  "validateCertificates": true,
+  "processorPoolSize": 1,
+  "sources": [
+    {
+      "addresses": ["waretwin/#"],
+      "consumerCount": 1,
+      "qos": 1,
+      "authorizationContext": ["nginx:ditto"],
+      "headerMapping": {},
+      "payloadMapping": ["Ditto"]
+    }
+  ],
+  "targets": []
+}

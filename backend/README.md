@@ -73,15 +73,33 @@ Python 引擎 0.3 ms/tick（20 台機器人、7,000 格 A*）。10× 倍速需�
 
 `tests/test_engine.py::test_prng_matches_js` 確保亂數流 bit-level 相同，所以任務產生序列、指派結果、FSM 轉換在前 1,500 tick 完全一致。之後位置會逐漸分歧（最終 KPI 差距 < 5%）——原因是 A* 在**等成本路徑**上的 tie-break 順序不同（heap 實作差異），兩邊都是合法最短路徑。What-if 因此完全在後端跑（clone 同一個引擎），不依賴前後端 bit-level 一致；統一 heap tie-break 規則列在 Roadmap。
 
+## MQTT → Eclipse Ditto（可選）
+
+`app/mqtt.py` 在每輪 tick 後比對狀態、只把**有變動**的欄位以 Ditto Protocol JSON 發到 MQTT，
+Ditto connectivity（source `waretwin/#`）再寫成 Thing（`waretwin:robot-R01`、`waretwin:conveyor-CV01`…）。
+預設關閉（`TWIN_MQTT_ENABLED=0`），不影響測試 / CI。
+
+```bash
+infra/ditto/provision.sh                                   # 建 policy + connection（一次）
+TWIN_MQTT_ENABLED=1 uvicorn app.main:app --reload --port 8000
+```
+
+語意：實體首見 → `modify`（含 `policyId`）；欄位變動 → `merge`（property 消失送 `null` 刪除，
+media type `application/merge-patch+json`）；實體消失 → `delete`。批次以 `TWIN_MQTT_INTERVAL_S`
+（預設 0.5 s）合併，不逐 tick 發送。`/api/health` 會回報 `mqtt_enabled` / `mqtt_connected`。
+完整對照表與驗證方式見 `infra/ditto/README.md`。
+
 ## 目錄
 
 ```
 app/main.py          FastAPI、WebSocket、模擬迴圈、diff
+app/mqtt.py          MQTT → Eclipse Ditto bridge（only-on-change）
 app/db.py            SQLite（events / kpi_snapshots / decisions）
 app/schema.py        Pydantic 契約（= docs/schema/twin_state.py）
 app/sim/astar.py     A*
 app/sim/navgrid.py   layout → 導航網格
 app/sim/engine.py    模擬引擎
 app/warehouse_layout.json   與前端同一份
+infra/ditto/         policy · connection · provision.sh · README
 tests/
 ```

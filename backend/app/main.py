@@ -1,9 +1,9 @@
 """
-AI Autonomous Warehouse Digital Twin — 後端（Phase 3）
+AI Autonomous Warehouse Digital Twin — backend (Phase 3). (Digital Twin kho tự động AI, backend Phase 3.)
 
   Simulation (asyncio task) → Twin State → WebSocket (FULL / PATCH) → Browser
 
-啟動：uvicorn app.main:app --reload --port 8000
+Start with: uvicorn app.main:app --reload --port 8000. (Khởi động bằng lệnh trên.)
 WebSocket：ws://localhost:8000/ws
 REST：/api/health /api/state /api/events /api/kpi /api/layout /api/inject /api/tasks
 """
@@ -25,13 +25,14 @@ from pydantic import TypeAdapter, ValidationError
 
 try:
     from dotenv import load_dotenv
-    load_dotenv()  # backend/.env：OPENAI_API_KEY 等
+    load_dotenv()  # backend/.env: OPENAI_API_KEY and other settings. (backend/.env: OPENAI_API_KEY và các cấu hình khác.)
 except Exception:
     pass
 from .ai import copilot as copilot_ai
 from .ai import vlm as vlm_ai
 from .db import TwinDB
 from .guard import MAX_BODY_BYTES, MAX_WS_MESSAGE_BYTES, client_key, limiter, origin_allowed
+from .mqtt import DittoPublisher
 from .schema import (ClearInjectionBody, ClientMessage, CopilotBody, NewTask, ScenarioInjection, SimControlBody, TwinState,
                      VlmObserveBody, WhatIfRequest)
 from .sim.engine import SimEngine, SIM
@@ -48,7 +49,7 @@ inject_adapter: TypeAdapter[Any] = TypeAdapter(ScenarioInjection)
 
 
 class TwinServer:
-    """持有引擎、模擬迴圈、連線與 diff 狀態。"""
+    """Own the engine, simulation loop, connections, and diff state. (Quản lý engine, vòng lặp mô phỏng, kết nối và trạng thái diff.)"""
 
     def __init__(self, seed: int = 42, db_path: str = "twin.db") -> None:
         self.layout = load_layout()
@@ -56,6 +57,7 @@ class TwinServer:
         self.engine = SimEngine(self.layout, seed=seed)
         self.run_id = uuid.uuid4().hex[:8]
         self.db = TwinDB(db_path)
+        self.mqtt = DittoPublisher.from_env(self.layout)   # chỉ bật khi TWIN_MQTT_ENABLED=1; không có mqtt cũng chạy bình thường
         self.clients: set[WebSocket] = set()
         self.speed = 1
         self.paused = False
@@ -70,7 +72,7 @@ class TwinServer:
         self.last_error: str | None = None
         self._whatif_lock = asyncio.Lock()
 
-    # ── 模擬迴圈 ────────────────────────────────────────────
+    # Simulation loop. (Vòng lặp mô phỏng.)
     async def run(self) -> None:
         acc = 0.0
         last = time.perf_counter()
@@ -118,6 +120,12 @@ class TwinServer:
         except Exception as e:  # DB 只是審計用途，失敗不應該影響即時串流
             self.loop_errors += 1; self.last_error = f"db: {type(e).__name__}: {e}"[:300]
             log.warning("db write failed: %s", self.last_error)
+        try:
+            # Ditto/MQTT 是獨立輸出：即使沒有 WebSocket client 也照樣 publish（chỉ gửi phần thay đổi）
+            self.mqtt.publish(S)
+        except Exception as e:
+            self.loop_errors += 1; self.last_error = f"mqtt: {type(e).__name__}: {e}"[:300]
+            log.warning("mqtt publish failed: %s", self.last_error)
         if not self.clients:
             self._snapshot_prev(); self.last_sent_tick = tick; return
         patch = self.make_patch()
@@ -194,7 +202,7 @@ class TwinServer:
         mx = max(v) or 1.0
         return {"kind": kind, "floor": floor, "cols": cols, "rows": rows, "values": [round(x / mx, 2) for x in v], "window_ticks": 200 if kind == "TRAFFIC" else 6000}
 
-    # ── 連線 ────────────────────────────────────────────────
+    # Connections. (Kết nối.)
     async def broadcast(self, msg: dict[str, Any]) -> None:
         data = json.dumps(msg, separators=(",", ":"))
         dead = []
@@ -319,6 +327,7 @@ class TwinServer:
         self.run_id = uuid.uuid4().hex[:8]
         self._prev = {}; self._prev_subsys = ""; self._prev_decision = ""; self._sent_decision = ""
         self.last_sent_tick = 0
+        self.mqtt.reset()   # quên snapshot Ditto → lần publish kế tiếp tạo lại toàn bộ
         self._snapshot_prev()
 
 
@@ -331,6 +340,14 @@ async def lifespan(app: FastAPI):
     if server._task and not server._task.done():
         server._task.cancel()
     server.last_progress = time.monotonic()   # 剛啟動不算停擺
+    if server.mqtt.enabled and server.mqtt.transport is not None:
+        # kết nối broker ở thread riêng (connect() blocking); thất bại thì sim vẫn chạy
+        ok = await asyncio.to_thread(server.mqtt.transport.connect)
+        if ok:
+            try:
+                server.mqtt.publish(server.engine.state, force=True)   # baseline: create toàn bộ Thing
+            except Exception:
+                log.exception("mqtt baseline publish failed")
     server._task = asyncio.create_task(server.run())
     try:
         yield
@@ -340,6 +357,8 @@ async def lifespan(app: FastAPI):
             await server._task
         except (asyncio.CancelledError, Exception):
             pass
+        if server.mqtt.transport is not None:
+            server.mqtt.transport.disconnect()
         server.clients.clear()
 
 
@@ -444,7 +463,8 @@ def health_payload() -> dict[str, Any]:
     ok = task_alive and not stalled
     return {"ok": ok, "run_id": server.run_id, "tick": S["sim"]["tick"], "speed": server.speed, "paused": server.paused,
             "clients": len(server.clients), "tick_rate": round(server.tick_rate_actual, 1), "robots": len(S["robots"]),
-            "sim_task_alive": task_alive, "stalled": stalled, "db_ok": db_ok, "loop_errors": server.loop_errors, "last_error": server.last_error}
+            "sim_task_alive": task_alive, "stalled": stalled, "db_ok": db_ok, "loop_errors": server.loop_errors, "last_error": server.last_error,
+            "mqtt_enabled": server.mqtt.enabled, "mqtt_connected": bool(server.mqtt.transport and server.mqtt.transport.connected)}
 
 
 @app.get("/api/health")

@@ -92,15 +92,30 @@ WareTwin/
 ├── backend/         FastAPI · Pydantic v2 · asyncio · SQLite
 │   └── app/sim/          Python engine · A* · What-if
 │   └── app/ai/           Copilot · VLM
+│   └── app/mqtt.py       MQTT → Eclipse Ditto bridge (only-on-change)
+│   └── infra/ditto/      Ditto policy · MQTT connection · provision.sh
 ├── docs/            schema · layout generator
 └── dev.ps1
 ```
 
+## 🔗 Digital twin on Eclipse Ditto (MQTT)
+
+The backend can mirror the **current state** of every entity (robots, conveyors, zones, lifts, cameras, sensors, tasks, people, alerts + a warehouse aggregate) into [Eclipse Ditto](https://eclipse.dev/ditto/) Things over MQTT. Only changed fields are published, coalesced to one batch every `TWIN_MQTT_INTERVAL_S` (default 0.5 s), so it never streams per tick. Entities become `waretwin:robot-R01`, `waretwin:conveyor-CV01`, `waretwin:warehouse`, …
+
+```bash
+# once: create the shared policy + MQTT connection in a local Ditto
+backend/infra/ditto/provision.sh
+# then run the backend with the bridge enabled
+cd backend && TWIN_MQTT_ENABLED=1 uvicorn app.main:app --reload --port 8000
+```
+
+Disabled by default (no broker needed for tests/CI). Mapping table, env vars and verification live in [`backend/infra/ditto/README.md`](backend/infra/ditto/README.md).
+
 ## 🧪 Tests
 
 ```bash
-cd backend && python -m pytest -q      # 52 tests: PRNG parity, A*, 20-min stress (no collisions < 0.5 m), determinism, lifts,
-                                        #           low battery, intrusion, gridlock-free compound failure, WS/REST, AI, What-if
+cd backend && python -m pytest -q      # 61 tests: PRNG parity, A*, 20-min stress (no collisions < 0.5 m), determinism, lifts,
+                                        #           low battery, intrusion, gridlock-free compound failure, WS/REST, AI, What-if, MQTT/Ditto
 cd frontend && npm test                 # 32 tests: same engine contract in TypeScript
 ```
 
