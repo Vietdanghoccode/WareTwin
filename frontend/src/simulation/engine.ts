@@ -378,15 +378,23 @@ export class SimEngine {
       for (const c of cands.slice(1)) c.rejected_reason = c.battery < 40 ? "battery too low" : c.distance_m > best.distance_m * 1.5 ? "farther from task" : c.workload === "HIGH" ? "high workload" : "lower score";
       const robot = S.robots[best.robot_id];
       idle.splice(idle.indexOf(robot), 1);
-      task.status = "ASSIGNED"; task.assigned_robot = robot.id; task.assigned_tick = S.sim.tick;
-      robot.current_task_id = task.id;
-      this.rt[robot.id].plannedLiftId = liftPick[robot.id] ?? null;   // planTo 跨樓層時優先使用稽核記錄的電梯
-      this.setFsm(robot, "TASK_ASSIGNED");
-      const decision: AiDecision = { id: `D${++this.decisionSeq}`, tick: S.sim.tick, kind: "TASK_ASSIGNMENT", task_id: task.id, selected_robot: robot.id, candidates: cands.slice(0, 5), weights, narrative: null };
-      S.recent_decisions.unshift(decision); if (S.recent_decisions.length > 50) S.recent_decisions.pop();
-      this.emit("TASK_ASSIGNED", "FLEET_MANAGER", "INFO", `Task #${task.id} assigned to ${robot.id} (${best.distance_m}m, ${best.battery}%)`, { task_id: task.id, robot_id: robot.id });
+      this.commitAssignment(task, robot, liftPick[robot.id] ?? null, cands, weights);
     }
   }
+
+  private commitAssignment(task: TaskState, robot: RobotState, plannedLiftId: string | null,
+                           cands: DecisionCandidate[], weights: Record<string, number>) {
+    const S = this.state;
+    const best = cands[0];
+    task.status = "ASSIGNED"; task.assigned_robot = robot.id; task.assigned_tick = S.sim.tick;
+    robot.current_task_id = task.id;
+    this.rt[robot.id].plannedLiftId = plannedLiftId;   // planTo 跨樓層時優先使用稽核記錄的電梯
+    this.setFsm(robot, "TASK_ASSIGNED");
+    const decision: AiDecision = { id: `D${++this.decisionSeq}`, tick: S.sim.tick, kind: "TASK_ASSIGNMENT", task_id: task.id, selected_robot: robot.id, candidates: cands.slice(0, 5), weights, narrative: null };
+    S.recent_decisions.unshift(decision); if (S.recent_decisions.length > 50) S.recent_decisions.pop();
+    this.emit("TASK_ASSIGNED", "FLEET_MANAGER", "INFO", `Task #${task.id} assigned to ${robot.id} (${best.distance_m}m, ${best.battery}%)`, { task_id: task.id, robot_id: robot.id });
+  }
+
 
   private pruneTasks() {
     const S = this.state; const tick = S.sim.tick;

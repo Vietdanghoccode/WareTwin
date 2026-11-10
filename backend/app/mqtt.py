@@ -40,6 +40,20 @@ SECTION_PREFIX = {
 }
 WAREHOUSE_THING = "warehouse"
 
+# Ánh xạ section → root Goal trong goal knowledge graph (Neo4j, xem WoDT-pattern/cypher/waretwin_*_kg.md).
+# Dùng để nối Thing trên Ditto với cây mục tiêu của nó; ghi vào attributes tĩnh nên không bị diff mỗi tick.
+# `goalRootId` là khoá chính mà WoDT đọc; `goalAgentId` ghi kèm để tương thích quy ước cũ.
+SECTION_GOAL_ROOT = {
+    "robots": "G_WT_TRANSPORT",
+    "conveyors": "G_CV_PROVIDE_MATERIAL_FLOW",
+    "zones": "G_Z_MAINTAIN_SAFE_TRAFFIC",
+    "lifts": "G_WT_CROSSFLOOR",
+    "cameras": "G_P_PROVIDE_SITUATIONAL_AWARENESS",
+    "sensors": "G_P_PROVIDE_SITUATIONAL_AWARENESS",
+    "tasks": "G_WT_ALLOC",
+}
+WAREHOUSE_GOAL_ROOT = "G_WT_FULFILL_OPERATIONS"
+
 _MISSING = object()
 
 
@@ -185,6 +199,9 @@ def build_things(state: dict[str, Any], layout: Optional[dict[str, Any]] = None)
         for eid, entity in entities.items():
             name = thing_name(section, eid)
             attrs = _compact(dict(attrs_by_id.get(eid) or {}))
+            root = SECTION_GOAL_ROOT.get(section)
+            if root:   # nối Thing với root Goal của nó trong goal graph
+                attrs = _compact({**attrs, "goalRootId": root, "goalAgentId": root})
             if section == "robots":   # model/max_speed là tĩnh nhưng nằm trong state
                 attrs = _compact({**attrs, "model": entity.get("model"), "max_speed": entity.get("max_speed")})
             out[name] = {"attributes": attrs, "features": {"state": {"properties": builder(entity)}}}
@@ -197,7 +214,8 @@ def build_things(state: dict[str, Any], layout: Optional[dict[str, Any]] = None)
         "operation": kpi.get("operation"), "efficiency": kpi.get("efficiency"),
     })
     out[WAREHOUSE_THING] = {
-        "attributes": _compact({"layout_id": state.get("layout_id"), "schema_version": state.get("schema_version")}),
+        "attributes": _compact({"layout_id": state.get("layout_id"), "schema_version": state.get("schema_version"),
+                                "goalRootId": WAREHOUSE_GOAL_ROOT, "goalAgentId": WAREHOUSE_GOAL_ROOT}),
         "features": {
             "subsystems": {"properties": dict(subsys)},
             "kpi": {"properties": kpi_props},
@@ -373,7 +391,7 @@ class DittoPublisher:
     def _active(self) -> bool:
         return bool(self.enabled and self.transport is not None and self.transport.connected)
 
-    def publish(self, state: dict[str, Any], *, force: bool = False, now: Optional[float] = None) -> list[str]:
+    def publish(self, state: dict[str, Any], *, dispatch: Optional[dict[str, Any]] = None, force: bool = False, now: Optional[float] = None) -> list[str]:
         """Publish phần thay đổi; trả về danh sách Thing đã gửi (rỗng nếu throttle/tắt)."""
         if not self._active():
             return []
@@ -411,4 +429,12 @@ class DittoPublisher:
                     self.transport.publish(topic, _envelope(topic, "/", d, content_type="application/merge-patch+json"))
                     self._known[name] = payload
                     sent.append(name)
+        if dispatch is not None:
+            # Replace the complete feature in one command. Merge-patch would retain
+            # removed waiting tasks and erase explicit nulls inside this snapshot.
+            topic = _topic(self.namespace, WAREHOUSE_THING, "modify")
+            self.transport.publish(topic, _envelope(topic, "/features/dispatch",
+                                   {"properties": {"snapshot": dispatch}}))
+            if WAREHOUSE_THING not in sent:
+                sent.append(WAREHOUSE_THING)
         return sent

@@ -86,6 +86,7 @@ def _run(eng: SimEngine, injections: list[dict[str, Any]], duration: int) -> tup
     start_wait = sum(r["stats"]["wait_ticks"] for r in eng.state["robots"].values())
     start_energy = sum(r["stats"]["energy_wh"] for r in eng.state["robots"].values())
     eng.state["sim"]["mode"] = "WHATIF"
+    eng.external_allocation = False  # Clones remain self-contained; no external decisions.
     for inj in injections:
         eng.inject(inj)
     events: list[dict[str, Any]] = []

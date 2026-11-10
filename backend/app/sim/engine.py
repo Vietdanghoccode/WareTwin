@@ -94,6 +94,7 @@ class RobotRt:
 class SimEngine:
     def __init__(self, layout: dict[str, Any], seed: int = 42, initial_state: Optional[dict[str, Any]] = None) -> None:
         self.layout = layout
+        self.external_allocation = False
         self.grid: NavGrid = build_nav_grid(layout, 1)
         self.grids: dict[int, NavGrid] = {1: self.grid}
         for f in layout.get("floors", []):
@@ -270,7 +271,8 @@ class SimEngine:
         tick = S["sim"]["tick"]
         self._apply_injections()
         self._generate_tasks()
-        self._assign_tasks()
+        if not self.external_allocation:
+            self._assign_tasks()
         self._rebuild_occupancy()
         self._step_lifts()
         for rid in list(S["robots"].keys()):
@@ -369,16 +371,22 @@ class SimEngine:
                                         else "high workload" if c["workload"] == "HIGH" else "lower score")
             robot = S["robots"][best["robot_id"]]
             idle.remove(robot)
-            task["status"] = "ASSIGNED"; task["assigned_robot"] = robot["id"]; task["assigned_tick"] = S["sim"]["tick"]
-            robot["current_task_id"] = task["id"]
-            self.rt[robot["id"]].planned_lift_id = lift_pick.get(robot["id"])   # _plan_to 跨樓層時優先使用稽核記錄的電梯
-            self._set_fsm(robot, "TASK_ASSIGNED")
-            self.decision_seq += 1
-            S["recent_decisions"].insert(0, {"id": f"D{self.decision_seq}", "tick": S["sim"]["tick"], "kind": "TASK_ASSIGNMENT", "task_id": task["id"],
-                                             "selected_robot": robot["id"], "candidates": cands[:5], "weights": weights, "narrative": None})
-            if len(S["recent_decisions"]) > 50:
-                S["recent_decisions"].pop()
-            self.emit("TASK_ASSIGNED", "FLEET_MANAGER", "INFO", f"Task #{task['id']} assigned to {robot['id']} ({best['distance_m']}m, {best['battery']}%)", task_id=task["id"], robot_id=robot["id"])
+            self.commit_assignment(task, robot, lift_pick.get(robot["id"]), cands, weights)
+
+    def commit_assignment(self, task, robot, planned_lift_id, cands, weights, narrative=None):
+        """Commit a selected pair; shared by internal and external allocation."""
+        S = self.state
+        best = cands[0]
+        task["status"] = "ASSIGNED"; task["assigned_robot"] = robot["id"]; task["assigned_tick"] = S["sim"]["tick"]
+        robot["current_task_id"] = task["id"]
+        self.rt[robot["id"]].planned_lift_id = planned_lift_id   # _plan_to 跨樓層時優先使用稽核記錄的電梯
+        self._set_fsm(robot, "TASK_ASSIGNED")
+        self.decision_seq += 1
+        S["recent_decisions"].insert(0, {"id": f"D{self.decision_seq}", "tick": S["sim"]["tick"], "kind": "TASK_ASSIGNMENT", "task_id": task["id"],
+                                         "selected_robot": robot["id"], "candidates": cands[:5], "weights": weights, "narrative": narrative})
+        if len(S["recent_decisions"]) > 50:
+            S["recent_decisions"].pop()
+        self.emit("TASK_ASSIGNED", "FLEET_MANAGER", "INFO", f"Task #{task['id']} assigned to {robot['id']} ({best['distance_m']}m, {best['battery']}%)", task_id=task["id"], robot_id=robot["id"])
 
     def _prune_tasks(self) -> None:
         S = self.state; tick = S["sim"]["tick"]

@@ -30,6 +30,7 @@ except Exception:
     pass
 from .ai import copilot as copilot_ai
 from .ai import vlm as vlm_ai
+from .allocation import Assignment, authorize, apply_assignment, dispatch_snapshot
 from .db import TwinDB
 from .guard import MAX_BODY_BYTES, MAX_WS_MESSAGE_BYTES, client_key, limiter, origin_allowed
 from .mqtt import DittoPublisher
@@ -55,6 +56,14 @@ class TwinServer:
         self.layout = load_layout()
         self.seed = seed
         self.engine = SimEngine(self.layout, seed=seed)
+        self.assignment_mode = os.getenv('TWIN_ALLOCATION_MODE', 'internal')
+        if self.assignment_mode not in ('internal', 'external'):
+            raise ValueError('TWIN_ALLOCATION_MODE must be internal or external')
+        if self.assignment_mode == 'external' and (not os.getenv('FLEET_API_KEY') or os.getenv('TWIN_MQTT_ENABLED') != '1'):
+            raise ValueError('External allocation requires FLEET_API_KEY and TWIN_MQTT_ENABLED=1')
+        self.engine.external_allocation = self.assignment_mode == 'external'
+        self.assignment_results = {}
+        self.dispatch_ticks = {}
         self.run_id = uuid.uuid4().hex[:8]
         self.db = TwinDB(db_path)
         self.mqtt = DittoPublisher.from_env(self.layout)   # chỉ bật khi TWIN_MQTT_ENABLED=1; không có mqtt cũng chạy bình thường
@@ -122,7 +131,11 @@ class TwinServer:
             log.warning("db write failed: %s", self.last_error)
         try:
             # Ditto/MQTT 是獨立輸出：即使沒有 WebSocket client 也照樣 publish（chỉ gửi phần thay đổi）
-            self.mqtt.publish(S)
+            dispatch = dispatch_snapshot(self) if self.assignment_mode == 'external' or os.getenv('TWIN_DISPATCH_SNAPSHOT') == '1' else None
+            sent = self.mqtt.publish(S, dispatch=dispatch)
+            if dispatch is not None and sent:
+                self.dispatch_ticks[dispatch['tick']] = dispatch['published_at']
+                self.dispatch_ticks = {tick: ts for tick, ts in self.dispatch_ticks.items() if time.time() - ts <= 5}
         except Exception as e:
             self.loop_errors += 1; self.last_error = f"mqtt: {type(e).__name__}: {e}"[:300]
             log.warning("mqtt publish failed: %s", self.last_error)
@@ -324,6 +337,9 @@ class TwinServer:
         if seed is not None:
             self.seed = seed
         self.engine = SimEngine(self.layout, seed=self.seed)
+        self.engine.external_allocation = self.assignment_mode == 'external'
+        self.assignment_results.clear()
+        self.dispatch_ticks.clear()
         self.run_id = uuid.uuid4().hex[:8]
         self._prev = {}; self._prev_subsys = ""; self._prev_decision = ""; self._sent_decision = ""
         self.last_sent_tick = 0
@@ -525,6 +541,13 @@ async def post_clear(body: ClearInjectionBody, request: Request) -> dict[str, An
     throttle(request, "mutate")
     server.engine.clear_injection(body.kind, body.target_id)
     return {"ok": True}
+
+
+@app.post("/api/fleet/assignments")
+async def post_assignment(body: Assignment, request: Request) -> dict[str, Any]:
+    authorize(request.headers.get('X-Fleet-Key'))
+    throttle(request, "mutate")
+    return apply_assignment(server, body)
 
 
 @app.post("/api/tasks")

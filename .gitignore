@@ -7,7 +7,9 @@ __pycache__/
 .pytest_cache/
 
 # secrets & local state
-backend/.env
+.env
+.env.*
+!.env.example
 *.db
 *.db-wal
 *.db-shm
@@ -22,5 +24,7 @@ docs/layout/layout_preview.png
 # editors / OS
 .vscode/
 .idea/
+.agents/
+.codex/
 .DS_Store
 Thumbs.db

@@ -2,16 +2,16 @@
 # Tạo policy + MQTT connection cho WareTwin trên Eclipse Ditto local. (Idempotent: chạy lại được.)
 #
 #   ./provision.sh
-#   DITTO_URL=http://localhost:8080 DITTO_AUTH=ditto:ditto ./provision.sh
+#   DITTO_URL=http://localhost:8080 ./provision.sh
 #
-# Lưu ý xác thực: policy đi qua gateway thường (:8080, user `ditto`), connection đi qua
-# gateway devops (:8082, user `devops`) — giống setup Ditto local của WoDT-pattern.
+# Dùng đúng Ditto ĐANG CHẠY (nginx gateway :8080) — không cần service/port nào khác.
+# Xác thực: policy bằng user `ditto`, connection bằng user `devops` (đều qua :8080).
 # Yêu cầu: Ditto đang chạy và Mosquitto ở cùng docker network (`tcp://mosquitto:1883`).
 set -euo pipefail
 
-DITTO="${DITTO_URL:-http://localhost:8080}"          # gateway thường
-DITTO_AUTH="${DITTO_AUTH:-ditto:ditto}"
-CONN_URL="${DITTO_CONN_URL:-http://localhost:8082}"  # gateway devops
+DITTO="${DITTO_URL:-http://localhost:8080}"          # gateway Ditto đang chạy
+DITTO_AUTH="${DITTO_AUTH:-ditto:ditto}"              # policy: gateway thường
+CONN_URL="${DITTO_CONN_URL:-$DITTO}"                 # connection: cùng gateway (devops user)
 CONN_AUTH="${DITTO_AUTH_DEVOPS:-devops:foobar}"
 CONN_NAME="WareTwin local MQTT connection"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

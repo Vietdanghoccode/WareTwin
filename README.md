@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/logo.svg" width="96" alt="WareTwin logo" />
+<img src="frontend/public/favicon.svg" width="96" alt="WareTwin logo" />
 
 # WareTwin
 
@@ -16,9 +16,7 @@
 [![Python](https://img.shields.io/badge/Python-3.11-3776ab?logo=python&logoColor=white)](https://python.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white)](https://typescriptlang.org)
 
-[**Live demo**](https://ware-twin.vercel.app) · [Architecture](#-architecture) · [繁體中文](README.zh-TW.md)
-
-<img src="docs/demo.gif" width="880" alt="WareTwin demo: 20 AMRs running, compound failure injected, VLM detects a human, Copilot explains the throughput drop" />
+[**Live demo**](https://ware-twin.vercel.app) · [Architecture](#-architecture) · [Ditto / WoDT guide](docs/ditto/README.md)
 
 </div>
 
@@ -54,12 +52,12 @@ git clone https://github.com/WayneChou-bot/WareTwin.git && cd WareTwin
 # backend
 cd backend
 conda create -n waretwin python=3.11 -y && conda activate waretwin   # or: python -m venv .venv
-pip install -r requirements-dev.txt   # runtime + pytest/httpx (requirements.lock = fully pinned, used by Render/Docker)
+pip install -r requirements.lock   # pinned runtime dependencies, also used by CI / Render / Docker
 uvicorn app.main:app --reload --port 8000
 
 # frontend (new terminal)
 cd frontend
-npm install
+npm ci
 npm run dev          # → http://localhost:5173
 ```
 
@@ -69,7 +67,7 @@ Try injecting scenarios from the ⚡ panel — from normal operation to a compou
 
 ## 🧩 AI modes
 
-The AI layer never needs a key to run. Set `OPENAI_API_KEY` in `backend/.env` (see `.env.example`) to switch from demo mode to live models:
+The AI layer never needs a key to run. Set `OPENAI_API_KEY` in `backend/.env` (see [`backend/.env.example`](backend/.env.example)) to switch from demo mode to live models:
 
 | | Demo mode (default, no key) | LLM mode |
 |---|---|---|
@@ -81,7 +79,13 @@ The public demo runs in demo mode on purpose: it is fully functional and cannot 
 
 ## 🏗 Architecture
 
-<img src="docs/architecture.svg" width="100%" alt="Architecture: browser (R3F twin, UI, store, local fallback engine) ↔ WebSocket ↔ FastAPI (SimEngine, What-if, AI, Twin State, SQLite)" />
+```text
+Browser (React / R3F / local TS engine)
+    ↕ WebSocket FULL / PATCH
+FastAPI (Python engine / What-if / AI / SQLite)
+    → MQTT → Eclipse Ditto → external allocator ← Neo4j
+    ← HTTP /api/fleet/assignments ← allocator
+```
 
 The **Twin State** is the single contract — `frontend/src/schema/twin_state.ts` ≡ `backend/app/schema.py` (Pydantic). Both engines share the same PRNG bit-for-bit, so the task stream and assignments are identical; What-if runs on the backend by deep-cloning the engine (state + FSM runtime + RNG).
 
@@ -93,9 +97,25 @@ WareTwin/
 │   └── app/sim/          Python engine · A* · What-if
 │   └── app/ai/           Copilot · VLM
 │   └── app/mqtt.py       MQTT → Eclipse Ditto bridge (only-on-change)
+│   └── app/allocation.py Fleet API · dispatch snapshot
 │   └── infra/ditto/      Ditto policy · MQTT connection · provision.sh
-├── docs/            schema · layout generator
+├── docs/            Ditto / WoDT guide · layout generator
 └── dev.ps1
+```
+
+API documentation is available at `http://localhost:8000/docs`. Key endpoints include
+`/api/health`, `/api/state`, `/api/state/validate`, `/api/events`, `/api/decisions`,
+`/api/kpi`, `/api/layout`, `/api/tasks`, `/api/inject`, `/api/copilot` and `/api/vlm/observe`.
+
+The WebSocket sends a `FULL` state on connection, then `PATCH` messages with
+`base_tick`, `tick`, changed fields and new events. A `null` entity means deletion;
+clients request `RESYNC` if the ticks do not match. `HEATMAP` layers arrive every 30 ticks.
+
+The layout generator writes JSON to stdout. To update both runtime copies, run from the repository root:
+
+```bash
+python docs/layout/gen_layout.py > backend/app/warehouse_layout.json
+cp backend/app/warehouse_layout.json frontend/src/layout/warehouse_layout.json
 ```
 
 ## 🔗 Digital twin on Eclipse Ditto (MQTT)
@@ -109,19 +129,35 @@ backend/infra/ditto/provision.sh
 cd backend && TWIN_MQTT_ENABLED=1 uvicorn app.main:app --reload --port 8000
 ```
 
-Disabled by default (no broker needed for tests/CI). Mapping table, env vars and verification live in [`backend/infra/ditto/README.md`](backend/infra/ditto/README.md).
+Disabled by default. Set `TWIN_ALLOCATION_MODE=external` and a shared `FLEET_API_KEY`
+to accept assignments from a goal-model allocator over HTTP. The allocator reads
+Neo4j contracts and the atomic `dispatch` snapshot on `waretwin:warehouse` in Ditto.
 
-## 🧪 Tests
+**Hướng dẫn bằng tiếng Việt:** [Chạy WareTwin + Ditto + WoDT allocator](docs/ditto/README.md)
+— cấu hình MQTT, seed goal model, chạy allocator, ánh xạ Thing và xử lý lỗi.
+
+## 🔧 Build & validation
 
 ```bash
-cd backend && python -m pytest -q      # 61 tests: PRNG parity, A*, 20-min stress (no collisions < 0.5 m), determinism, lifts,
-                                        #           low battery, intrusion, gridlock-free compound failure, WS/REST, AI, What-if, MQTT/Ditto
-cd frontend && npm test                 # 32 tests: same engine contract in TypeScript
+# From backend/ (with its Python environment active)
+python -m pip check
+python -m compileall -q app
+
+# From frontend/
+npm run build       # TypeScript typecheck + Vite production build
+npm run preview     # preview the production build
 ```
+
+CI installs the pinned dependencies, checks Python compilation/application imports
+and validates the initial TwinState, then typechecks and builds the frontend.
 
 ## ☁️ Deployment
 
-Frontend is static (Vercel / GitHub Pages); backend is a long-running WebSocket service (Render / Fly.io / any container — not serverless). `backend/render.yaml`, `Dockerfile`, `fly.toml` and `frontend/vercel.json` are included; set `VITE_WS_URL=wss://…/ws` on the frontend and `TWIN_CORS_ORIGINS` on the backend. Details in [`frontend/README.md`](frontend/README.md#部署).
+Frontend is static (Vercel / GitHub Pages); backend is a long-running WebSocket service (Render / Fly.io / any container — not serverless).
+
+- **Backend:** use `backend/render.yaml` for Render or `backend/Dockerfile` / `backend/fly.toml` for container deployment. Set `TWIN_CORS_ORIGINS` to the frontend URL.
+- **Frontend:** set the Vercel root directory to `frontend`; `frontend/vercel.json` includes the Vite build and SPA rewrite. Set `VITE_WS_URL=wss://<backend-host>/ws` before building.
+- **GitHub Pages:** set `base: "/<repo-name>/"` in `frontend/vite.config.ts` and provide `VITE_WS_URL` during the build.
 
 ## 🔒 Running it in public
 
